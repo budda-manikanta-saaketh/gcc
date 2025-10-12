@@ -1,0 +1,392 @@
+import 'dart:math';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+class Search extends StatefulWidget {
+  const Search({Key? key}) : super(key: key);
+
+  @override
+  State<Search> createState() => _SearchState();
+}
+
+class _SearchState extends State<Search> {
+  final FocusNode _searchFocusNode = FocusNode();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  List _searchResults = [];
+  List _allMenu = [];
+  List _recentSearches = [];
+  List _cartnames = [];
+
+  @override
+  void initState() {
+    super.initState();
+    getMenu().listen((menu) {
+      setState(() {
+        _allMenu = menu;
+      });
+    });
+    getSearchHistory().listen((history) {
+      setState(() {
+        _recentSearches = history;
+      });
+    });
+  }
+
+  Stream<List<DocumentSnapshot>> getMenu() {
+    fetchCartNames();
+    return _firestore
+        .collection('Menu')
+        .orderBy('Item Name')
+        .snapshots()
+        .map((snapshot) => snapshot.docs);
+  }
+
+  Stream<List<DocumentSnapshot>> getSearchHistory() {
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    User? user = _auth.currentUser;
+    return _firestore
+        .collection('Users')
+        .doc(user?.email)
+        .collection('Search History')
+        .orderBy('Date', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs);
+  }
+
+  Future<void> fetchCartNames() async {
+    final FirebaseAuth _auth = FirebaseAuth.instance;
+    User? user = _auth.currentUser;
+
+    try {
+      QuerySnapshot<Map<String, dynamic>> data = await _firestore
+          .collection('Users')
+          .doc(user?.email)
+          .collection('Cart')
+          .get();
+      setState(() {
+        _cartnames = data.docs
+            .map((doc) => (doc['Item Name'] as String).toLowerCase())
+            .toList();
+      });
+    } catch (e) {
+      print('Error fetching cart data: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    int searchLength = _searchResults.length;
+    int recentLength = _recentSearches.length;
+
+    return Scaffold(
+      backgroundColor: const Color.fromRGBO(255, 255, 255, 1),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: CupertinoSearchTextField(
+                focusNode: _searchFocusNode,
+                placeholder: 'Search',
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      spreadRadius: 1,
+                      blurRadius: 2,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                onChanged: (value) async {
+                  await _search(value);
+                },
+                onSubmitted: (value) {
+                  final FirebaseAuth _auth = FirebaseAuth.instance;
+                  User? user = _auth.currentUser;
+                  _firestore
+                      .collection('Users')
+                      .doc(user?.email)
+                      .collection('Search History')
+                      .add({
+                    'Search': value,
+                    'Date': Timestamp.now(),
+                  });
+                },
+              ),
+            ),
+          ),
+          _searchResults.isEmpty
+              ? Expanded(
+                  child: ListView.builder(
+                    itemCount: min(4, _recentSearches.length),
+                    itemBuilder: (context, index) {
+                      var item1 = _recentSearches[index];
+
+                      return GestureDetector(
+                        onTap: () {
+                          _search(item1['Search']);
+                        },
+                        child: Column(
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              width: width * 0.9,
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.history),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      item1['Search'] ?? 'No Name',
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Spacer(),
+                                    GestureDetector(
+                                        onTap: () async {
+                                          final FirebaseAuth _auth =
+                                              FirebaseAuth.instance;
+                                          User? user = _auth.currentUser;
+                                          await _firestore
+                                              .collection('Users')
+                                              .doc(user?.email)
+                                              .collection('Search History')
+                                              .doc(item1.id)
+                                              .delete();
+                                          getSearchHistory();
+                                        },
+                                        child: Icon(Icons.close)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Divider(
+                              height: 0.5,
+                              thickness: 0.5,
+                              color: Colors.black12,
+                            )
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                )
+              : Expanded(
+                  child: StreamBuilder<List<DocumentSnapshot>>(
+                    stream: getMenu(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
+                      _allMenu = snapshot.data!;
+                      return ListView.builder(
+                        itemCount: searchLength != 0
+                            ? min(3, searchLength)
+                            : min(4, recentLength),
+                        itemBuilder: (context, index) {
+                          var item = searchLength != 0
+                              ? _searchResults[index]
+                              : _recentSearches[index];
+                          bool inCart = _cartnames.contains(
+                              item['Item Name'].toString().toLowerCase());
+
+                          return GestureDetector(
+                            onTap: () {},
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              width: width * 0.9,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.5),
+                                    spreadRadius: 0,
+                                    blurRadius: 2,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 80,
+                                    height: 100,
+                                    margin: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black12,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: item['Images'] != null &&
+                                            item['Images'].isNotEmpty
+                                        ? CachedNetworkImage(
+                                            imageUrl: item['Images'][0],
+                                            placeholder: (context, url) =>
+                                                Center(
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            ),
+                                            errorWidget:
+                                                (context, url, error) =>
+                                                    Icon(Icons.error),
+                                          )
+                                        : Icon(Icons.image_not_supported),
+                                  ),
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                          top: 8.0, left: 8.0, right: 8.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                item['Item Name'] ?? 'No Name',
+                                                style: const TextStyle(
+                                                  fontSize: 17,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              Spacer(),
+                                              Container(
+                                                width: 25,
+                                                height: 25,
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(2),
+                                                  border: Border.all(
+                                                      color: (item['Type']
+                                                                  .toString()
+                                                                  .replaceAll(
+                                                                      ' ', '')
+                                                                  .toLowerCase() ==
+                                                              'non-veg')
+                                                          ? Colors.red
+                                                          : Colors.green),
+                                                ),
+                                                child: Center(
+                                                  child: FaIcon(
+                                                    FontAwesomeIcons
+                                                        .solidCircle,
+                                                    size: 10,
+                                                    color: (item['Type']
+                                                                .toString()
+                                                                .replaceAll(
+                                                                    ' ', '')
+                                                                .toLowerCase() ==
+                                                            'non-veg')
+                                                        ? Colors.red
+                                                        : Colors.green,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Divider(
+                                            color: Colors.black12,
+                                            thickness: 0.5,
+                                          ),
+                                          Row(
+                                            children: [
+                                              Text(
+                                                "₹ ${item['Price'] ?? 'N/A'}",
+                                                style: const TextStyle(
+                                                  fontSize: 17,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              Spacer(),
+                                              GestureDetector(
+                                                onTap: () async {
+                                                  if (inCart) {
+                                                  } else {
+                                                    await fetchCartNames();
+                                                  }
+                                                },
+                                                child: Container(
+                                                  width: inCart ? 90 : 80,
+                                                  decoration: BoxDecoration(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            4),
+                                                    border: Border.all(
+                                                        color: Colors
+                                                            .orangeAccent),
+                                                  ),
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                            left: 20,
+                                                            right: 20,
+                                                            top: 5,
+                                                            bottom: 5),
+                                                    child: Center(
+                                                      child: Text(
+                                                        inCart
+                                                            ? 'Added'
+                                                            : 'Add +',
+                                                        style: TextStyle(
+                                                            color: Colors
+                                                                .orangeAccent),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _search(String value) async {
+    _searchResults.clear();
+    if (value.isNotEmpty) {
+      for (var item in _allMenu) {
+        if (item['Item Name']
+            .toString()
+            .toLowerCase()
+            .contains(value.toLowerCase())) {
+          _searchResults.add(item);
+        }
+      }
+    } else {
+      await getSearchHistory();
+    }
+    setState(() {});
+  }
+}

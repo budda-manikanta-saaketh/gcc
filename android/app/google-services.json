@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "672506702941",
+    "project_id": "gcc-app-5f709",
+    "storage_bucket": "gcc-app-5f709.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:672506702941:android:eb1fbeeabdba2baadff1b4",
+        "android_client_info": {
+          "package_name": "com.gccapp.gcc"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-7_u6OiQ3tbh2Wpj5EjlIpPD4ebh6bQs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
