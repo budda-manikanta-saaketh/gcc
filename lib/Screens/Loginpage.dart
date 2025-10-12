@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:gcc/Admin/adminhome.dart';
 import 'package:gcc/Screens/signup.dart';
 import 'package:gcc/provider/google_sign_in.dart';
+import 'package:gcc/utils/hexcolor.dart';
 import 'package:gcc/utils/resetpassword.dart';
 import 'package:provider/provider.dart';
 
@@ -199,21 +200,14 @@ class _LoginPageState extends State<LoginPage> {
                                 offset: const Offset(0.0, 3.0),
                               )
                             ],
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.amber,
-                                const Color.fromARGB(255, 234, 175, 0)
-                              ],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
+                            color: HexColor("#007E03"),
                             borderRadius: BorderRadius.circular(5),
                           ),
                           alignment: Alignment.center,
                           child: const Text('Login',
                               style: TextStyle(
                                   fontSize: 18,
-                                  color: Colors.black,
+                                  color: Colors.white,
                                   fontWeight: FontWeight.w600))),
                     ),
                   ),

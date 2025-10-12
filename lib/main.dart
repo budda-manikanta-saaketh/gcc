@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:gcc/Admin/Adminorderrequests.dart';
 import 'package:gcc/Admin/adminhome.dart';
+import 'package:gcc/Admin/adminorders.dart';
+import 'package:gcc/Admin/adminprofile.dart';
+import 'package:gcc/Admin/adminrevenue.dart';
 import 'package:gcc/Screens/Loginpage.dart';
 import 'package:gcc/Screens/signup.dart';
 import 'package:gcc/provider/google_sign_in.dart';
 import 'package:gcc/utils/checkuser.dart';
+import 'package:gcc/utils/hexcolor.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
@@ -78,9 +83,23 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.green[800]!,
         ),
+        appBarTheme: AppBarTheme(
+          backgroundColor: HexColor("#007E03"),
+          foregroundColor: Colors.white,
+        ),
         useMaterial3: true,
       ),
       home: CheckUser(),
+      routes: {
+        "/login": (context) => LoginPage(),
+        "/signup": (context) => SignUp(),
+        "/adminhome": (context) => AdminHome(initialSelectedIndex: 0),
+        "/adminorders": (context) => AdminOrdersPage(),
+        "/adminorderrequests": (context) => AdminOrderRequests(),
+        "/adminrevenue": (context) => AdminRevenue(),
+        "/adminprofile": (context) => AdminProfile(),
+        // "/adminnotifications":(context)=>AdminNotifications(),
+      },
     );
   }
 }

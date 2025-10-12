@@ -11,182 +11,255 @@ class AdminProfile extends StatefulWidget {
 }
 
 class _AdminProfileState extends State<AdminProfile> {
+  static const Color primaryGreen = Color(0xFF4CAF50);
+  static const Color darkGreen = Color(0xFF2E7D32);
+  static const Color accentGreen = Color(0xFF66BB6A);
+  static const Color lightGreen = Color(0xFFC8E6C9);
+  static const Color veryLightGreen = Color(0xFFF1F8E9);
+  static const Color surfaceColor = Color(0xFFFAFAFA);
+  static const Color textDark = Color(0xFF1B1B1B);
+  static const Color textMuted = Color(0xFF757575);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: const Color.fromARGB(255, 240, 240, 240),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  color: Colors.white,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 0),
-                        child: Icon(
-                          Icons.account_circle,
-                          size: 60,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            left: 15.0, right: 8, top: 8, bottom: 8),
-                        child: Text(
-                            FirebaseAuth.instance.currentUser?.email ?? "",
-                            style:
-                                TextStyle(fontSize: 16, color: Colors.black38)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 8.0, right: 8, bottom: 8),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  color: Colors.white,
-                ),
+      backgroundColor: surfaceColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0, bottom: 8),
-                      child: Row(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(left: 30.0),
-                            child: Icon(
-                              Icons.edit_outlined,
-                              size: 26,
-                              color: Colors.black38,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                left: 20.0, right: 8, top: 8, bottom: 8),
-                            child: Text(
-                              "Edit Details",
-                              style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Menu',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: textDark,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    Divider(
-                      color: Colors.black12,
-                      thickness: 0.5,
+                    const SizedBox(height: 20),
+                    _buildMenuCard(
+                      icon: Icons.edit_rounded,
+                      label: 'Edit Details',
+                      description: 'Update your profile information',
+                      onTap: () {},
+                      iconColor: primaryGreen,
                     ),
-                    GestureDetector(
+                    const SizedBox(height: 12),
+                    _buildMenuCard(
+                      icon: Icons.receipt_long_rounded,
+                      label: 'Your Orders',
+                      description: 'View all your orders',
                       onTap: () {
                         Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => AdminHome(
-                                      initialSelectedIndex: 1,
-                                    )));
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AdminHome(
+                              initialSelectedIndex: 1,
+                            ),
+                          ),
+                        );
                       },
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 8.0, bottom: 8),
-                        child: Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(left: 30.0),
-                              child: Icon(
-                                Icons.paste_outlined,
-                                size: 26,
-                                color: Colors.black38,
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                  left: 20.0, right: 8, top: 8, bottom: 8),
-                              child: Text(
-                                "Your Orders",
-                                style: TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      iconColor: const Color(0xFF2196F3),
                     ),
-                    Divider(
-                      color: Colors.black12,
-                      thickness: 0.5,
+                    const SizedBox(height: 12),
+                    _buildMenuCard(
+                      icon: Icons.help_outline_rounded,
+                      label: 'FAQ',
+                      description: 'Get help and support',
+                      onTap: () {},
+                      iconColor: const Color(0xFFFFA500),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0, bottom: 8),
-                      child: Row(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(left: 30.0),
-                            child: Icon(
-                              Icons.help_outline,
-                              size: 26,
-                              color: Colors.black38,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                left: 20.0, right: 8, top: 8, bottom: 8),
-                            child: Text(
-                              "FAQ",
-                              style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(
-                      color: Colors.black12,
-                      thickness: 0.5,
-                    ),
-                    GestureDetector(
+                    const SizedBox(height: 28),
+                    _buildMenuCard(
+                      icon: Icons.logout_rounded,
+                      label: 'Logout',
+                      description: 'Sign out from your account',
                       onTap: () {
                         handleSignOut(context);
                       },
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 8.0, bottom: 15),
-                        child: Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(left: 30.0),
-                              child: Icon(
-                                Icons.logout,
-                                size: 26,
-                                color: Colors.red,
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                  left: 20.0, right: 8, top: 8, bottom: 8),
-                              child: Text(
-                                "Logout",
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
+                      iconColor: Colors.red,
+                      isDestructive: true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final userEmail = FirebaseAuth.instance.currentUser?.email ?? "No email";
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [primaryGreen, accentGreen],
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primaryGreen.withOpacity(0.2),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 2,
+              ),
+            ),
+            child: const Icon(
+              Icons.account_circle,
+              size: 68,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Admin',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white70,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  userEmail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuCard({
+    required IconData icon,
+    required String label,
+    required String description,
+    required VoidCallback onTap,
+    required Color iconColor,
+    bool isDestructive = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: iconColor.withOpacity(0.1),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDestructive
+                  ? Colors.red.withOpacity(0.2)
+                  : iconColor.withOpacity(0.15),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: iconColor.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDestructive
+                      ? Colors.red.withOpacity(0.1)
+                      : iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: iconColor,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: isDestructive ? Colors.red : textDark,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: textMuted,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
-        ));
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: isDestructive
+                    ? Colors.red.withOpacity(0.4)
+                    : iconColor.withOpacity(0.3),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

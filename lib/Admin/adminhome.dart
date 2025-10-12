@@ -90,41 +90,6 @@ class _AdminHomeState extends State<AdminHome> {
     final width = MediaQuery.of(context).size.width;
     return Scaffold(
       backgroundColor: Color.fromARGB(255, 255, 254, 248),
-      floatingActionButton: Container(
-        width: 100,
-        child: FloatingActionButton(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(40.0),
-          ),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => UploadFood()),
-            );
-          },
-          child: Row(
-            children: [
-              Padding(
-                padding: EdgeInsets.only(left: width * 0.05),
-                child: Icon(Icons.add),
-              ),
-              Padding(
-                padding: EdgeInsets.only(
-                  left: width * 0.02,
-                ),
-                child: Text(
-                  "New",
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
-                  ),
-                ),
-              )
-            ],
-          ),
-          backgroundColor: HexColor('#242424'),
-          foregroundColor: Colors.white,
-        ),
-      ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         automaticallyImplyLeading: false,
@@ -174,7 +139,7 @@ class _AdminHomeState extends State<AdminHome> {
         },
         children: [
           MainAdminHome(),
-          AdminOrders(),
+          AdminOrdersPage(),
           AdminRevenue(),
           AdminProfile(),
         ],
