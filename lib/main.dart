@@ -26,8 +26,8 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 Future<void> _showNotification(RemoteMessage message) async {
   const AndroidNotificationDetails androidPlatformChannelSpecifics =
       AndroidNotificationDetails(
-    'bitebox_notifications_channel',
-    'bitebox',
+    'gcc_notifications_channel',
+    'gcc',
     importance: Importance.max,
     priority: Priority.high,
     showWhen: false,

@@ -5,7 +5,7 @@ import 'package:gcc/Admin/adminhome.dart';
 import 'package:gcc/Screens/signup.dart';
 
 class CheckUser extends StatefulWidget {
-  const CheckUser({Key? key}) : super(key: key);
+  const CheckUser({super.key});
 
   @override
   State<CheckUser> createState() => _CheckUserState();
@@ -73,10 +73,10 @@ class _CheckUserState extends State<CheckUser> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
-        child: Container(
+        child: SizedBox(
           width: 100,
           height: 100,
-          child: Image.asset('assets/images/logo.png'),
+          child: Image.asset('assets/images/Gcc.png'),
         ),
       ),
     );
