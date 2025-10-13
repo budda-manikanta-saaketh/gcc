@@ -14,7 +14,7 @@ class _AdminRevenueState extends State<AdminRevenue> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   double _totalRevenue = 0.0;
   Map<String, double> itemrevenue = {};
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   List<String> _filteredItems = [];
 
   // Color palette
@@ -34,15 +34,12 @@ class _AdminRevenueState extends State<AdminRevenue> {
   }
 
   Future<void> calculateRevenue() async {
-    final FirebaseAuth _auth = FirebaseAuth.instance;
-    User? user = _auth.currentUser;
+    final FirebaseAuth auth = FirebaseAuth.instance;
+    User? user = auth.currentUser;
 
     try {
-      QuerySnapshot<Map<String, dynamic>> data = await _firestore
-          .collection('Users')
-          .doc(user?.email)
-          .collection('Orders')
-          .get();
+      QuerySnapshot<Map<String, dynamic>> data =
+          await _firestore.collection('Orders').get();
 
       double revenue = 0.0;
       Map<String, double> tempItemRevenue = {};

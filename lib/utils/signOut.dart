@@ -7,7 +7,7 @@ Future<void> handleSignOut(BuildContext context) async {
   try {
     await FirebaseAuth.instance.signOut();
     // await GoogleSignIn().signOut();
-    Navigator.pushNamedAndRemoveUntil(context, "/LoginPage/", (route) => false);
+    Navigator.pushNamedAndRemoveUntil(context, "/login", (route) => false);
     print("${FirebaseAuth.instance.currentUser?.email}");
   } catch (error) {
     ScaffoldMessenger.of(context).showSnackBar(

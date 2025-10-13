@@ -23,7 +23,7 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
   List<DocumentSnapshot> _orderRequestList = [];
   List<DocumentSnapshot> _filteredOrderList = [];
   final TextEditingController _searchController = TextEditingController();
-  Map<String, String> _statusMap = {};
+  final Map<String, String> _statusMap = {};
   bool loading = false;
 
   // Color palette
@@ -57,13 +57,11 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
   }
 
   Future<void> getOrders() async {
-    final FirebaseAuth _auth = FirebaseAuth.instance;
-    User? user = _auth.currentUser;
+    final FirebaseAuth auth = FirebaseAuth.instance;
+    User? user = auth.currentUser;
 
     try {
       QuerySnapshot<Map<String, dynamic>> data = await _firestore
-          .collection('Users')
-          .doc(user?.email)
           .collection('Orders')
           .orderBy('orderDate', descending: true)
           .get();
@@ -80,21 +78,19 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
   }
 
   Future<void> getOrderRequests() async {
-    final FirebaseAuth _auth = FirebaseAuth.instance;
-    User? user = _auth.currentUser;
+    final FirebaseAuth auth = FirebaseAuth.instance;
+    User? user = auth.currentUser;
 
     try {
       QuerySnapshot<Map<String, dynamic>> data = await _firestore
-          .collection('Users')
-          .doc(user?.email)
-          .collection('Order Requests')
+          .collection('Order_Requests')
           .orderBy('orderDate', descending: true)
           .get();
       setState(() {
         _orderRequestList = data.docs;
       });
     } catch (e) {
-      print('Error fetching order requests: $e');
+      print('Error fetching Order_Requests: $e');
     }
   }
 
@@ -348,7 +344,7 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
 
   Widget _buildRequestsTab() {
     return _orderRequestList.isEmpty
-        ? _buildEmptyState('No Requests', 'New order requests will appear here')
+        ? _buildEmptyState('No Requests', 'New Order_Requests will appear here')
         : RefreshIndicator(
             onRefresh: () async => await getOrderRequests(),
             color: primaryGreen,
@@ -819,29 +815,23 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
   Widget _buildUpdateButton(DocumentSnapshot item, String itemId) {
     return GestureDetector(
       onTap: () async {
-        final FirebaseAuth _auth = FirebaseAuth.instance;
-        User? user = _auth.currentUser;
+        final FirebaseAuth auth = FirebaseAuth.instance;
+        User? user = auth.currentUser;
         setState(() => loading = true);
 
         await _firestore
-            .collection('Users')
-            .doc(user?.email)
             .collection('Orders')
             .doc(itemId)
             .update({'Status': _statusMap[itemId]});
 
         final userdoc = await _firestore
-            .collection('Users')
-            .doc(item['Email'])
-            .collection('orders')
+            .collection('Orders')
             .where('OrderId', isEqualTo: item['OrderId'])
             .get();
 
         for (var doc in userdoc.docs) {
           await _firestore
-              .collection('Users')
-              .doc(item['Email'])
-              .collection('orders')
+              .collection('Orders')
               .doc(doc.id)
               .update({'Status': _statusMap[itemId]});
         }
@@ -878,22 +868,16 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
   }
 
   Future<void> _acceptOrder(DocumentSnapshot item) async {
-    final FirebaseAuth _auth = FirebaseAuth.instance;
-    User? user = _auth.currentUser;
+    final FirebaseAuth auth = FirebaseAuth.instance;
+    User? user = auth.currentUser;
 
     try {
       await _firestore
-          .collection('Users')
-          .doc(user?.email)
-          .collection('Order Requests')
+          .collection('Order_Requests')
           .doc(item.id)
           .update({'Status': 'Accepted'});
 
-      await _firestore
-          .collection('Users')
-          .doc(user?.email)
-          .collection('Orders')
-          .add({
+      await _firestore.collection('Orders').add({
         'OrderId': item['OrderId'],
         'Images': item['Images'],
         'Item Name': item['Item Name'],
@@ -910,24 +894,15 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
         'Email': item['Email']
       });
 
-      await _firestore
-          .collection('Users')
-          .doc(user?.email)
-          .collection('Order Requests')
-          .doc(item.id)
-          .delete();
+      await _firestore.collection('Order_Requests').doc(item.id).delete();
 
       final userorder = await _firestore
-          .collection('Users')
-          .doc(item['Email'])
-          .collection('orders')
+          .collection('Orders')
           .where('OrderId', isEqualTo: item['OrderId'])
           .get();
 
       await _firestore
-          .collection('Users')
-          .doc(item['Email'])
-          .collection('orders')
+          .collection('Orders')
           .doc(userorder.docs[0].id)
           .update({'Status': 'Accepted'});
 
@@ -939,16 +914,11 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
   }
 
   Future<void> _rejectOrder(DocumentSnapshot item) async {
-    final FirebaseAuth _auth = FirebaseAuth.instance;
-    User? user = _auth.currentUser;
+    final FirebaseAuth auth = FirebaseAuth.instance;
+    User? user = auth.currentUser;
 
     try {
-      await _firestore
-          .collection('Users')
-          .doc(user?.email)
-          .collection('Order Requests')
-          .doc(item.id)
-          .delete();
+      await _firestore.collection('Order_Requests').doc(item.id).delete();
 
       await getOrderRequests();
     } catch (e) {
