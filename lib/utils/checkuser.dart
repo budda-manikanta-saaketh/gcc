@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:gcc/Admin/adminhome.dart';
 import 'package:gcc/Screens/signup.dart';
+import 'package:gcc/User/UserScaffold.dart';
 
 class CheckUser extends StatefulWidget {
   const CheckUser({super.key});
@@ -38,14 +39,14 @@ class _CheckUserState extends State<CheckUser> {
               .doc('userinfo')
               .get();
           if (snapshot.exists) {
-            // Navigator.pushReplacement(
-            //   context,
-            //   MaterialPageRoute(
-            //     builder: (context) => const User_home(
-            //       initialSelectedIndex: 0,
-            //     ),
-            //   ),
-            // );
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const UserScaffold(
+                  initialIndex: 0,
+                ),
+              ),
+            );
           } else {
             Navigator.pushReplacement(
               context,

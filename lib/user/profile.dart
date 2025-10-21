@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:gcc/user/editprofiledetails.dart';
-import 'package:gcc/user/user_home.dart';
+import 'package:gcc/User/editprofiledetails.dart';
 import 'package:gcc/utils/signOut.dart';
 
 class Profile extends StatefulWidget {
@@ -152,14 +151,7 @@ class _ProfileState extends State<Profile> {
                       thickness: 0.5,
                     ),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => User_home(
-                                      initialSelectedIndex: 2,
-                                    )));
-                      },
+                      onTap: () {},
                       child: Padding(
                         padding: const EdgeInsets.only(top: 8.0, bottom: 8),
                         child: Row(

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:gcc/utils/hexcolor.dart';
 import 'package:intl/intl.dart';
 
 class AdminOrdersPage extends StatefulWidget {
@@ -97,7 +98,7 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
   void _searchOrders(String query) {
     setState(() {
       _filteredOrderList = _orderList.where((order) {
-        return order['OrderId'].toString().contains(query);
+        return order['orderId'].toString().contains(query);
       }).toList();
     });
   }
@@ -130,6 +131,7 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
                 floating: true,
                 pinned: true,
                 elevation: 0,
+                automaticallyImplyLeading: false,
                 backgroundColor: surfaceColor,
                 flexibleSpace: FlexibleSpaceBar(
                   collapseMode: CollapseMode.parallax,
@@ -142,7 +144,7 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [primaryGreen, accentGreen],
+                        colors: [HexColor("#007E03"), primaryGreen],
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -687,9 +689,9 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
                 Expanded(
                   child: GestureDetector(
                     onTap: () async {
-                      setState(() => loading = true);
-                      await _rejectOrder(item);
-                      setState(() => loading = false);
+                      // setState(() => loading = true);
+                      // await _rejectOrder(item);
+                      // setState(() => loading = false);
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),

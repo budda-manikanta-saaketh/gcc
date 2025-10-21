@@ -8,18 +8,16 @@ import 'package:gcc/utils/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 
-class EditFood extends StatefulWidget {
-  final DocumentSnapshot snapshot;
-  const EditFood({super.key, required this.snapshot});
+class UploadFood extends StatefulWidget {
+  const UploadFood({super.key});
 
   @override
-  State<EditFood> createState() => _EditFoodState();
+  State<UploadFood> createState() => _UploadFoodState();
 }
 
-class _EditFoodState extends State<EditFood> {
+class _UploadFoodState extends State<UploadFood> {
   List<XFile>? images = [];
   List<String> items = [];
-  int flag = 0;
   String? itemtype;
   String? useremail = FirebaseAuth.instance.currentUser?.email;
   TextEditingController search = TextEditingController();
@@ -29,19 +27,14 @@ class _EditFoodState extends State<EditFood> {
   TextEditingController _itemdescription = TextEditingController();
   TextEditingController _size = TextEditingController();
   TextEditingController _availablequantity = TextEditingController();
+  String dropdownValue = 'Kgs';
+
   late List<String> downloadurls;
   bool _isUploading = false;
   @override
   void initState() {
-    super.initState();
-    itemtype = widget.snapshot['Product Category'];
-    _itemname.text = widget.snapshot['Product Name'];
-    _price.text = widget.snapshot['Price'];
-    _itemdescription.text = widget.snapshot['Product Description'];
-    _size.text = widget.snapshot['Size'];
-    _availablequantity.text = widget.snapshot['Available Quantity'].toString();
-
     create_list();
+    super.initState();
   }
 
   @override
@@ -51,9 +44,6 @@ class _EditFoodState extends State<EditFood> {
     _price.dispose();
     _consistsof.dispose();
     _itemdescription.dispose();
-    _size.dispose();
-    _availablequantity.dispose();
-
     super.dispose();
   }
 
@@ -132,6 +122,7 @@ class _EditFoodState extends State<EditFood> {
         List<String> values =
             fields.values.cast<String>().toList(); // Cast to strings
         items.addAll(values);
+        setState(() {});
       }
     }).catchError((error) {
       // Handle errors here
@@ -150,22 +141,26 @@ class _EditFoodState extends State<EditFood> {
               _isUploading =
                   true; // Start the upload and show progress indicator
             });
+
             try {
               downloadurls = await uploadImages(images!);
-              await FirebaseFirestore.instance
-                  .collection('Menu')
-                  .doc(_itemname.text)
-                  .update({
-                'Product Name': _itemname.text,
-                'Product Category': itemtype,
-                'Price': _price.text,
-                'Product Description': _itemdescription.text,
-                'Size': _size.text,
-                'Available Quantity': int.parse(_availablequantity.text),
-                'Images': downloadurls,
-                'User Email': useremail,
-                'Total Rating': 0,
-                'Rating Count': 0,
+              final docRef =
+                  FirebaseFirestore.instance.collection('Products').doc();
+              final productId = docRef.id;
+              await docRef.set({
+                'product_Id': productId,
+                'product_Name': _itemname.text,
+                'product_Category': itemtype,
+                'price': double.parse(_price.text),
+                'consists': _consistsof.text,
+                'product_Description': _itemdescription.text,
+                'size': _size.text,
+                'createdOn': DateTime.now(),
+                'available_Quantity': int.parse(_availablequantity.text),
+                'images': downloadurls,
+                'user_Email': useremail,
+                'total_Rating': 0,
+                'rating_Count': 0,
               }).then((value) {
                 _showDocumentIdPopup2(
                     "Item Added Successfully", 'Upload Successful');
@@ -570,6 +565,51 @@ class _EditFoodState extends State<EditFood> {
                               ),
                             ),
                           ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: width * 0.06,
+                        top: width * 0.024,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "Type",
+                          style: TextStyle(
+                            fontSize: width * 0.045,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Roboto',
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: width * 0.07,
+                        top: width * 0.024,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: DropdownButton<String>(
+                          value: dropdownValue,
+                          icon: const Icon(Icons.arrow_drop_down),
+                          iconSize: 24,
+                          elevation: 16,
+                          dropdownColor: Colors.white,
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              dropdownValue = newValue!;
+                            });
+                          },
+                          items: <String>['Kgs', 'Grams', 'Litres', 'ML']
+                              .map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),

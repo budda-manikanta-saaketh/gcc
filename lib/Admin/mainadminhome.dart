@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:gcc/Admin/Uploadfood.dart';
+import 'package:gcc/Admin/UploadProduct.dart';
 import 'package:gcc/utils/hexcolor.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
-import 'EditFood.dart';
+import 'EditProduct.dart';
 
 class MainAdminHome extends StatefulWidget {
   const MainAdminHome({super.key});
@@ -22,6 +22,7 @@ class MainAdminHome extends StatefulWidget {
 class _MainAdminHomeState extends State<MainAdminHome> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List _orderRequestList = [];
+  late Future<void> _future;
 
   // Premium color palette
   static const Color primaryGreen = Color(0xFF4CAF50);
@@ -33,25 +34,31 @@ class _MainAdminHomeState extends State<MainAdminHome> {
   static const Color textDark = Color(0xFF1B1B1B);
   static const Color textMuted = Color(0xFF757575);
 
+  @override
+  void initState() {
+    super.initState();
+    _future = getorderrequests(); // initialize once
+  }
+
   Future<void> getorderrequests() async {
     final FirebaseAuth _auth = FirebaseAuth.instance;
     User? user = _auth.currentUser;
 
     try {
       QuerySnapshot<Map<String, dynamic>> data =
-          await _firestore.collection('Menu').get();
-      setState(() {
-        _orderRequestList = data.docs;
-      });
+          await _firestore.collection('Products').get();
+      _orderRequestList = data.docs;
     } catch (e) {
       print('Error fetching orders data: $e');
+      _orderRequestList = [];
+      rethrow;
     }
   }
 
   @override
   void dispose() {
-    super.dispose();
     DefaultCacheManager().emptyCache();
+    super.dispose();
   }
 
   @override
@@ -64,11 +71,15 @@ class _MainAdminHomeState extends State<MainAdminHome> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(40.0),
           ),
-          onPressed: () {
-            Navigator.push(
+          onPressed: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => UploadFood()),
             );
+            // Refresh list after returning from UploadFood
+            setState(() {
+              _future = getorderrequests();
+            });
           },
           child: Row(
             children: [
@@ -77,16 +88,14 @@ class _MainAdminHomeState extends State<MainAdminHome> {
                 child: Icon(Icons.add),
               ),
               Padding(
-                padding: EdgeInsets.only(
-                  left: 4,
-                ),
+                padding: EdgeInsets.only(left: 4),
                 child: Text(
                   "New",
                   style: TextStyle(
                     fontFamily: 'Roboto',
                   ),
                 ),
-              )
+              ),
             ],
           ),
           backgroundColor: HexColor('#242424'),
@@ -98,25 +107,33 @@ class _MainAdminHomeState extends State<MainAdminHome> {
           children: [
             _buildHeader(),
             Expanded(
-              child: StreamBuilder(
-                stream: getorderrequests().asStream(),
+              child: FutureBuilder<void>(
+                future: _future,
                 builder: (context, snapshot) {
-                  if (_orderRequestList.isEmpty &&
-                      (snapshot.connectionState == ConnectionState.waiting ||
-                          snapshot.connectionState == ConnectionState.active)) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return _buildAnimatedLoader();
+                  } else if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        'Error loading inventory: ${snapshot.error}',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    );
+                  } else {
+                    if (_orderRequestList.isEmpty) {
+                      return _buildEmptyState();
+                    } else {
+                      return ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
+                        itemCount: _orderRequestList.length,
+                        itemBuilder: (context, index) {
+                          var item = _orderRequestList[index];
+                          return _buildInventoryCard(item, context);
+                        },
+                      );
+                    }
                   }
-                  return _orderRequestList.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 16),
-                          itemCount: _orderRequestList.length,
-                          itemBuilder: (context, index) {
-                            var item = _orderRequestList[index];
-                            return _buildInventoryCard(item, context);
-                          },
-                        );
                 },
               ),
             ),
@@ -133,10 +150,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            primaryGreen,
-            accentGreen,
-          ],
+          colors: [HexColor("#007E03"), primaryGreen],
         ),
         boxShadow: [
           BoxShadow(
@@ -333,7 +347,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
             ),
             child: const Icon(
               Icons.inventory_2_outlined,
-              size: 72,
+              size: 32,
               color: primaryGreen,
             ),
           ),
@@ -349,7 +363,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Start by adding your first menu item',
+            'Start By Adding Your First Product',
             style: TextStyle(
               fontSize: 16,
               color: textMuted,
@@ -386,7 +400,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => EditFood(snapshot: item),
+                builder: (context) => EditProduct(snapshot: item),
               ),
             );
           },
@@ -442,9 +456,9 @@ class _MainAdminHomeState extends State<MainAdminHome> {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: item['Images'] != null && item['Images'].isNotEmpty
+      child: item['images'] != null && item['images'].isNotEmpty
           ? CachedNetworkImage(
-              imageUrl: item['Images'][0],
+              imageUrl: item['images'][0],
               fit: BoxFit.cover,
               placeholder: (context, url) => const Center(
                 child: SizedBox(
@@ -472,7 +486,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          item['Product Name'] ?? 'No Name',
+          item['product_Name'] ?? 'No Name',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
@@ -502,7 +516,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
                 ],
               ),
               child: Text(
-                '₹${item['Price'] ?? '0'}',
+                '₹${item['price'] ?? '0'}',
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
@@ -512,24 +526,28 @@ class _MainAdminHomeState extends State<MainAdminHome> {
               ),
             ),
             const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: veryLightGreen,
-                borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: lightGreen.withOpacity(0.7), width: 1.5),
-              ),
-              child: Text(
-                item['Product Category'] ?? 'Uncategorized',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: darkGreen,
-                  letterSpacing: 0.1,
+            Flexible(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: veryLightGreen,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: lightGreen.withOpacity(0.7), width: 1.5),
+                ),
+                child: Text(
+                  item['product_Category'] ?? 'Uncategorized',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: darkGreen,
+                    letterSpacing: 0.1,
+                  ),
+                  overflow: TextOverflow.ellipsis, // Important
                 ),
               ),
-            ),
+            )
           ],
         ),
         const SizedBox(height: 10),
@@ -539,8 +557,8 @@ class _MainAdminHomeState extends State<MainAdminHome> {
   }
 
   Widget _buildRatingBadge(dynamic item) {
-    final totalRating = item['Total Rating'] ?? 0;
-    final ratingCount = item['Rating Count'] ?? 0;
+    final totalRating = item['total_Rating'] ?? 0;
+    final ratingCount = item['rating_Count'] ?? 0;
     final avgRating = ratingCount > 0
         ? (totalRating / ratingCount).toStringAsFixed(1)
         : '0.0';
@@ -583,7 +601,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
   }
 
   Widget _buildDescription(dynamic item) {
-    final description = item['Product Description'] ?? '';
+    final description = item['product_Description'] ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -603,8 +621,8 @@ class _MainAdminHomeState extends State<MainAdminHome> {
   }
 
   Widget _buildStatsRow(dynamic item) {
-    final availableQty = item['Available Quantity'] ?? '0';
-    final size = item['Size'] ?? 'N/A';
+    final availableQty = item['available_Quantity'] ?? '0';
+    final size = item['size'] ?? 'N/A';
 
     return Row(
       children: [
@@ -686,7 +704,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
   }
 
   Widget _buildDetailsRow(dynamic item) {
-    final userEmail = item['User Email'] ?? 'No email';
+    final userEmail = item['user_Email'] ?? 'No email';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -749,14 +767,17 @@ class _MainAdminHomeState extends State<MainAdminHome> {
           ),
         ),
       ],
-      onSelected: (value) {
+      onSelected: (value) async {
         if (value == 'edit') {
-          Navigator.push(
+          await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => EditFood(snapshot: item),
+              builder: (context) => EditProduct(snapshot: item),
             ),
           );
+          setState(() {
+            _future = getorderrequests();
+          });
         } else if (value == 'delete') {
           _showDeleteDialog(context, item);
         }
@@ -807,7 +828,7 @@ class _MainAdminHomeState extends State<MainAdminHome> {
             ),
             FilledButton(
               onPressed: () {
-                _firestore.collection('Menu').doc(item.id).delete();
+                _firestore.collection('Products').doc(item.id).delete();
                 Navigator.of(context).pop();
               },
               style: FilledButton.styleFrom(

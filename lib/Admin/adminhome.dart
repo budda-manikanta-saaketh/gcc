@@ -4,7 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:gcc/Admin/Uploadfood.dart';
+import 'package:gcc/Admin/UploadProduct.dart';
 import 'package:gcc/Admin/adminorders.dart';
 import 'package:gcc/Admin/adminprofile.dart';
 import 'package:gcc/Admin/adminrevenue.dart';
@@ -513,6 +513,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                           onTap: () {
                             widget.handleNavigation(3);
                             Navigator.pop(context);
+                          },
+                        ),
+                        _buildDrawerItem(
+                          context,
+                          icon: Icons.add,
+                          title: 'Add Category',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, "/adminaddcategory");
                           },
                         ),
                       ],

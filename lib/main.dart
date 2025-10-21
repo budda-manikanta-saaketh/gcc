@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:gcc/Admin/AdminAddCategory.dart';
 import 'package:gcc/Admin/Adminorderrequests.dart';
 import 'package:gcc/Admin/adminhome.dart';
 import 'package:gcc/Admin/adminorders.dart';
@@ -8,7 +9,14 @@ import 'package:gcc/Admin/adminprofile.dart';
 import 'package:gcc/Admin/adminrevenue.dart';
 import 'package:gcc/Screens/Loginpage.dart';
 import 'package:gcc/Screens/signup.dart';
+import 'package:gcc/User/UserAddAddress.dart';
+import 'package:gcc/User/UserAddress.dart';
+import 'package:gcc/User/UserAllProducts.dart';
+import 'package:gcc/User/UserEditProfile.dart';
+import 'package:gcc/User/UserWishlist.dart';
 import 'package:gcc/provider/google_sign_in.dart';
+import 'package:gcc/User/UserScaffold.dart';
+import 'package:gcc/user/UserSearch.dart';
 import 'package:gcc/utils/checkuser.dart';
 import 'package:gcc/utils/hexcolor.dart';
 import 'package:provider/provider.dart';
@@ -87,6 +95,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: HexColor("#007E03"),
           foregroundColor: Colors.white,
         ),
+        scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
       ),
       home: CheckUser(),
@@ -98,6 +107,15 @@ class MyApp extends StatelessWidget {
         "/adminorderrequests": (context) => AdminOrderRequests(),
         "/adminrevenue": (context) => AdminRevenue(),
         "/adminprofile": (context) => AdminProfile(),
+        "/adminaddcategory": (context) => AdminAddCategory(),
+        "/userhome": (context) => UserScaffold(),
+        "/usersearch": (context) => UserSearch(),
+        "/useraddress": (context) => UserAddress(),
+        "/userorders": (context) => UserScaffold(initialIndex: 1),
+        "/useraddaddress": (context) => UserAddAddress(),
+        "/usereditprofile": (context) => UserEditProfile(),
+        "/userwishlist": (context) => UserWishlist(),
+        "/userallproducts": (context) => UserAllProducts()
         // "/adminnotifications":(context)=>AdminNotifications(),
       },
     );

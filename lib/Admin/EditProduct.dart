@@ -8,18 +8,21 @@ import 'package:gcc/utils/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 
-class UploadFood extends StatefulWidget {
-  const UploadFood({super.key});
+class EditProduct extends StatefulWidget {
+  final DocumentSnapshot snapshot;
+  const EditProduct({super.key, required this.snapshot});
 
   @override
-  State<UploadFood> createState() => _UploadFoodState();
+  State<EditProduct> createState() => _EditProductState();
 }
 
-class _UploadFoodState extends State<UploadFood> {
+class _EditProductState extends State<EditProduct> {
   List<XFile>? images = [];
   List<String> items = [];
+  int flag = 0;
   String? itemtype;
   String? useremail = FirebaseAuth.instance.currentUser?.email;
+  String? productId;
   TextEditingController search = TextEditingController();
   TextEditingController _itemname = TextEditingController();
   TextEditingController _price = TextEditingController();
@@ -27,14 +30,20 @@ class _UploadFoodState extends State<UploadFood> {
   TextEditingController _itemdescription = TextEditingController();
   TextEditingController _size = TextEditingController();
   TextEditingController _availablequantity = TextEditingController();
-  String dropdownValue = 'Kgs';
-
-  late List<String> downloadurls;
+  late List<dynamic> downloadurls;
   bool _isUploading = false;
   @override
   void initState() {
-    create_list();
     super.initState();
+    itemtype = widget.snapshot['product_Category'];
+    _itemname.text = widget.snapshot['product_Name'];
+    _price.text = widget.snapshot['price'].toString();
+    _itemdescription.text = widget.snapshot['product_Description'];
+    _size.text = widget.snapshot['size'];
+    _availablequantity.text = widget.snapshot['available_Quantity'].toString();
+    productId = widget.snapshot['product_Id'];
+    downloadurls = widget.snapshot["images"];
+    create_list();
   }
 
   @override
@@ -44,6 +53,9 @@ class _UploadFoodState extends State<UploadFood> {
     _price.dispose();
     _consistsof.dispose();
     _itemdescription.dispose();
+    _size.dispose();
+    _availablequantity.dispose();
+
     super.dispose();
   }
 
@@ -103,7 +115,7 @@ class _UploadFoodState extends State<UploadFood> {
         urls.add(downloadURL); // Add the download URL to the list
       }
 
-      return urls; // Return the list of download URLs
+      return urls;
     } catch (error) {
       print('Error uploading images: $error');
       rethrow; // Rethrow the error to be handled by the caller
@@ -122,7 +134,6 @@ class _UploadFoodState extends State<UploadFood> {
         List<String> values =
             fields.values.cast<String>().toList(); // Cast to strings
         items.addAll(values);
-        setState(() {});
       }
     }).catchError((error) {
       // Handle errors here
@@ -142,22 +153,26 @@ class _UploadFoodState extends State<UploadFood> {
                   true; // Start the upload and show progress indicator
             });
             try {
-              downloadurls = await uploadImages(images!);
+              if (downloadurls.isEmpty) {
+                downloadurls = await uploadImages(images!);
+              }
               await FirebaseFirestore.instance
-                  .collection('Menu')
-                  .doc(_itemname.text)
-                  .set({
-                'Product Name': _itemname.text,
-                'Product Category': itemtype,
-                'Price': _price.text,
-                'Consists Of': _consistsof.text,
-                'Product Description': _itemdescription.text,
-                'Size': _size.text,
-                'Available Quantity': int.parse(_availablequantity.text),
-                'Images': downloadurls,
-                'User Email': useremail,
-                'Total Rating': 0,
-                'Rating Count': 0,
+                  .collection('Products')
+                  .doc(productId)
+                  .update({
+                'product_Id': productId,
+                'product_Name': _itemname.text,
+                'product_Category': itemtype,
+                'price': double.parse(_price.text),
+                'consists': _consistsof.text,
+                'product_Description': _itemdescription.text,
+                'size': _size.text,
+                'createdOn': DateTime.now(),
+                'available_Quantity': int.parse(_availablequantity.text),
+                'images': downloadurls,
+                'user_Email': useremail,
+                'total_Rating': 0,
+                'rating_Count': 0,
               }).then((value) {
                 _showDocumentIdPopup2(
                     "Item Added Successfully", 'Upload Successful');
@@ -213,92 +228,54 @@ class _UploadFoodState extends State<UploadFood> {
                   children: [
                     images!.isEmpty
                         ? Padding(
-                            padding: EdgeInsets.only(
-                              left: width * 0.04,
-                              top: width * 0.02,
-                              right: width * 0.04,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: width * 0.04,
+                              vertical: width * 0.02,
                             ),
                             child: Container(
-                                decoration: BoxDecoration(
-                                  color: Color.fromARGB(255, 255, 237, 222),
-                                  borderRadius: BorderRadius.circular(10.0),
-                                ),
-                                height: width * 0.78,
-                                child: Stack(
-                                  children: [
-                                    Positioned(
-                                        child: Container(
-                                      decoration: BoxDecoration(
-                                        color: HexColor('#2A2828'),
-                                        borderRadius: BorderRadius.only(
-                                            topLeft: Radius.circular(10),
-                                            topRight: Radius.circular(10)),
+                              decoration: BoxDecoration(
+                                color: Color.fromARGB(255, 255, 249, 222),
+                                borderRadius: BorderRadius.circular(10.0),
+                              ),
+                              height: width * 0.78,
+                              child: Column(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: HexColor('#2A2828'),
+                                      borderRadius: BorderRadius.only(
+                                          topLeft: Radius.circular(10),
+                                          topRight: Radius.circular(10)),
+                                    ),
+                                    height: width * 0.10,
+                                    child: Align(
+                                      alignment: AlignmentGeometry.centerLeft,
+                                      child: Padding(
+                                        padding:
+                                            EdgeInsetsGeometry.only(left: 10),
+                                        child: Text(
+                                          "Product Photos ( ${downloadurls.length}/4 )",
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontFamily: 'Roboto',
+                                              fontWeight: FontWeight.w600),
+                                        ),
                                       ),
-                                      height: width * 0.10,
-                                      child: Stack(
-                                        children: [
-                                          Positioned(
-                                              top: width * 0.02,
-                                              left: width * 0.03,
-                                              child: Text("Product Photos",
-                                                  style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontFamily: 'Roboto',
-                                                      fontWeight:
-                                                          FontWeight.w600))),
-                                          Positioned(
-                                              right: width * 0.03,
-                                              top: width * 0.02,
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  pickImages();
-                                                },
-                                                child: Text("Edit",
-                                                    style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontFamily: 'Roboto',
-                                                        fontWeight:
-                                                            FontWeight.w500)),
-                                              )),
-                                        ],
-                                      ),
-                                    )),
-                                    Positioned(
-                                        top: width * 0.35,
-                                        left: width * 0.33,
-                                        child: Column(
-                                          children: [
-                                            GestureDetector(
-                                              onTap: () {
-                                                pickImages();
-                                              },
-                                              child: Image.asset(
-                                                'assets/images/Addphoto2.png',
-                                                width: width * 0.13,
-                                                height: width * 0.13,
-                                              ),
-                                            ),
-                                            Text(
-                                              "Click to Add Photo",
-                                              style: TextStyle(
-                                                fontSize: width * 0.03,
-                                                color: Colors.black38,
-                                              ),
-                                            ),
-                                          ],
-                                        )),
-                                    Positioned(
-                                        bottom: width * 0.02,
-                                        left: width * 0.02,
-                                        child: GestureDetector(
-                                            onTap: () {
-                                              _pickImageFromCamera();
-                                            },
-                                            child: FaIcon(
-                                                FontAwesomeIcons.camera,
-                                                size: width * 0.06)))
-                                  ],
-                                )),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: PageView.builder(
+                                      itemCount: downloadurls.length,
+                                      itemBuilder: (context, index) {
+                                        return Image.network(
+                                          downloadurls[index],
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           )
                         : Padding(
                             padding: EdgeInsets.only(
@@ -328,13 +305,15 @@ class _UploadFoodState extends State<UploadFood> {
                                           Positioned(
                                               top: width * 0.02,
                                               left: width * 0.03,
-                                              child: Text(
-                                                  "Product Photos (${images!.length}/4)",
-                                                  style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontFamily: 'Roboto',
-                                                      fontWeight:
-                                                          FontWeight.w600))),
+                                              child: Align(
+                                                child: Text(
+                                                    "Product Photos (${images!.length}/4)",
+                                                    style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontFamily: 'Roboto',
+                                                        fontWeight:
+                                                            FontWeight.w600)),
+                                              )),
                                           Positioned(
                                               right: width * 0.03,
                                               top: width * 0.02,
@@ -562,51 +541,6 @@ class _UploadFoodState extends State<UploadFood> {
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.only(
-                        left: width * 0.06,
-                        top: width * 0.024,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "Type",
-                          style: TextStyle(
-                            fontSize: width * 0.045,
-                            fontWeight: FontWeight.w900,
-                            fontFamily: 'Roboto',
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.only(
-                        left: width * 0.07,
-                        top: width * 0.024,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: DropdownButton<String>(
-                          value: dropdownValue,
-                          icon: const Icon(Icons.arrow_drop_down),
-                          iconSize: 24,
-                          elevation: 16,
-                          dropdownColor: Colors.white,
-                          onChanged: (String? newValue) {
-                            setState(() {
-                              dropdownValue = newValue!;
-                            });
-                          },
-                          items: <String>['Kgs', 'Grams', 'Litres', 'ML']
-                              .map<DropdownMenuItem<String>>((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
                         ),
                       ),
                     ),

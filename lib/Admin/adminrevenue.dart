@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:gcc/utils/hexcolor.dart';
 import 'package:intl/intl.dart';
 
 class AdminRevenue extends StatefulWidget {
@@ -113,7 +114,7 @@ class _AdminRevenueState extends State<AdminRevenue> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [primaryGreen, accentGreen],
+          colors: [HexColor("#007E03"), primaryGreen],
         ),
         boxShadow: [
           BoxShadow(
@@ -175,7 +176,7 @@ class _AdminRevenueState extends State<AdminRevenue> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [primaryGreen.withOpacity(0.9), accentGreen],
+          colors: [HexColor("#007E03"), primaryGreen],
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [

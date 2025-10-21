@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:gcc/Admin/adminhome.dart';
+import 'package:gcc/utils/hexcolor.dart';
 import 'package:gcc/utils/signOut.dart';
 
 class AdminProfile extends StatefulWidget {
@@ -107,7 +108,7 @@ class _AdminProfileState extends State<AdminProfile> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [primaryGreen, accentGreen],
+          colors: [HexColor("#007E03"), primaryGreen],
         ),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(32),

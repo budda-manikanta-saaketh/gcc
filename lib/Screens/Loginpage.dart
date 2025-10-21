@@ -108,7 +108,9 @@ class _LoginPageState extends State<LoginPage> {
                                   builder: (context) => const AdminHome(
                                         initialSelectedIndex: 0,
                                       )));
-                        } else {}
+                        } else {
+                          Navigator.pushNamed(context, "/userhome");
+                        }
                       } on FirebaseAuthException catch (e) {
                         setState(() {
                           isLoading = false;
@@ -279,32 +281,24 @@ class _LoginPageState extends State<LoginPage> {
                         String? email = user?.email;
 
                         // Navigate based on the email
-                        if (email == "biteboxcanteen@gmail.com") {
+                        if (email == "manikantaspam@gmail.com") {
                           // Redirect to Admin Home
                           Navigator.pushNamedAndRemoveUntil(
-                              context, '/AdminHome/', (route) => false);
+                              context, '/adminhome', (route) => false);
                         } else if (email == null) {
-                          // Handle the case where email is null (user not logged in properly)
                           print('User email is null');
-                          // Show a SnackBar with the error message
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                                 content:
                                     Text('Sign-In failed. Please try again.')),
                           );
                         } else {
-                          // Redirect to User Home
                           Navigator.pushNamedAndRemoveUntil(
-                              context, '/UserHome/', (route) => false);
+                              context, '/userhome', (route) => false);
                         }
                       } on Exception catch (e) {
-                        // Print the exception and provide user feedback
                         print('Error during Google Sign-In: $e');
-
-                        // Remove the loading indicator in case of error
                         Navigator.of(context).pop();
-
-                        // Show a SnackBar with the error message
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                               content:

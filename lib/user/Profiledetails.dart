@@ -8,7 +8,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:gcc/Screens/Loginpage.dart';
 import 'package:gcc/utils/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
 
 class ProfileDetails extends StatefulWidget {
   final String email;
@@ -41,26 +40,6 @@ class _ProfileDetailsState extends State<ProfileDetails> {
     _fullname.dispose();
     _phonenumber.dispose();
     super.dispose();
-  }
-
-  void _showDocumentIdPopup(String documentId, String title) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Text(documentId),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   void _showDocumentIdPopup2(String documentId, String title) {
