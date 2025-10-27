@@ -24,12 +24,12 @@ class _EditProductState extends State<EditProduct> {
   String? useremail = FirebaseAuth.instance.currentUser?.email;
   String? productId;
   TextEditingController search = TextEditingController();
-  TextEditingController _itemname = TextEditingController();
-  TextEditingController _price = TextEditingController();
-  TextEditingController _consistsof = TextEditingController();
-  TextEditingController _itemdescription = TextEditingController();
-  TextEditingController _size = TextEditingController();
-  TextEditingController _availablequantity = TextEditingController();
+  final TextEditingController _itemname = TextEditingController();
+  final TextEditingController _price = TextEditingController();
+  final TextEditingController _consistsof = TextEditingController();
+  final TextEditingController _itemdescription = TextEditingController();
+  final TextEditingController _size = TextEditingController();
+  final TextEditingController _availablequantity = TextEditingController();
   late List<dynamic> downloadurls;
   bool _isUploading = false;
   @override
@@ -249,10 +249,9 @@ class _EditProductState extends State<EditProduct> {
                                     ),
                                     height: width * 0.10,
                                     child: Align(
-                                      alignment: AlignmentGeometry.centerLeft,
+                                      alignment: Alignment.centerLeft,
                                       child: Padding(
-                                        padding:
-                                            EdgeInsetsGeometry.only(left: 10),
+                                        padding: EdgeInsets.only(left: 10),
                                         child: Text(
                                           "Product Photos ( ${downloadurls.length}/4 )",
                                           style: TextStyle(
@@ -572,7 +571,7 @@ class _EditProductState extends State<EditProduct> {
                             right: width * 0.04,
                             left: width * 0.04,
                           ),
-                          child: Container(
+                          child: SizedBox(
                             width: width,
                             height: 100,
                             child: TextFormField(
@@ -696,7 +695,7 @@ class _EditProductState extends State<EditProduct> {
         await ImagePicker().pickImage(source: ImageSource.camera);
     if (pickedImage != null) {
       setState(() {
-        if (images!.length < 1) {
+        if (images!.isEmpty) {
           images = [...?images, pickedImage];
         } else {
           images = [pickedImage];

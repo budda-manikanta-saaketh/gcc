@@ -11,11 +11,11 @@ class CategoryCard extends StatelessWidget {
   final bool isFirstItem;
 
   const CategoryCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.imageUrl,
     this.isFirstItem = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +68,7 @@ class CategoryCard extends StatelessWidget {
 class ProductCard extends StatefulWidget {
   final Map<String, dynamic> product;
 
-  const ProductCard({Key? key, required this.product}) : super(key: key);
+  const ProductCard({super.key, required this.product});
 
   @override
   State<ProductCard> createState() => _ProductCardState();
@@ -385,7 +385,7 @@ class _ProductCardState extends State<ProductCard> {
                 user == null
                     ? _buildAddToCartButton()
                     : Align(
-                        alignment: AlignmentGeometry.centerRight,
+                        alignment: Alignment.centerRight,
                         child: StreamBuilder<DocumentSnapshot>(
                           stream: FirebaseFirestore.instance
                               .collection('Users')

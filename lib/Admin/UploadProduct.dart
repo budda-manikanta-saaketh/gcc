@@ -21,12 +21,12 @@ class _UploadFoodState extends State<UploadFood> {
   String? itemtype;
   String? useremail = FirebaseAuth.instance.currentUser?.email;
   TextEditingController search = TextEditingController();
-  TextEditingController _itemname = TextEditingController();
-  TextEditingController _price = TextEditingController();
-  TextEditingController _consistsof = TextEditingController();
-  TextEditingController _itemdescription = TextEditingController();
-  TextEditingController _size = TextEditingController();
-  TextEditingController _availablequantity = TextEditingController();
+  final TextEditingController _itemname = TextEditingController();
+  final TextEditingController _price = TextEditingController();
+  final TextEditingController _consistsof = TextEditingController();
+  final TextEditingController _itemdescription = TextEditingController();
+  final TextEditingController _size = TextEditingController();
+  final TextEditingController _availablequantity = TextEditingController();
   String dropdownValue = 'Kgs';
 
   late List<String> downloadurls;
@@ -110,24 +110,23 @@ class _UploadFoodState extends State<UploadFood> {
     }
   }
 
-  void create_list() {
-    FirebaseFirestore.instance
-        .collection('Categories')
-        .doc('Categories')
-        .get()
-        .then((DocumentSnapshot docSnapshot) {
-      if (docSnapshot.exists) {
-        Map<String, dynamic> fields =
-            docSnapshot.data() as Map<String, dynamic>;
-        List<String> values =
-            fields.values.cast<String>().toList(); // Cast to strings
-        items.addAll(values);
-        setState(() {});
-      }
-    }).catchError((error) {
-      // Handle errors here
-      print('Error fetching Categories document: $error');
-    });
+  void create_list() async {
+    try {
+      final querySnapshot =
+          await FirebaseFirestore.instance.collection('Categories').get();
+
+      final List<String> categoryNames = querySnapshot.docs
+          .where((doc) => doc.data().containsKey('Name'))
+          .map((doc) => doc['Name'].toString())
+          .where((name) => name.isNotEmpty)
+          .toList();
+
+      setState(() {
+        items = categoryNames;
+      });
+    } catch (error) {
+      print('Error fetching categories: $error');
+    }
   }
 
   @override
@@ -641,7 +640,7 @@ class _UploadFoodState extends State<UploadFood> {
                             right: width * 0.04,
                             left: width * 0.04,
                           ),
-                          child: Container(
+                          child: SizedBox(
                             width: width,
                             height: 100,
                             child: TextFormField(
@@ -765,7 +764,7 @@ class _UploadFoodState extends State<UploadFood> {
         await ImagePicker().pickImage(source: ImageSource.camera);
     if (pickedImage != null) {
       setState(() {
-        if (images!.length < 1) {
+        if (images!.isEmpty) {
           images = [...?images, pickedImage];
         } else {
           images = [pickedImage];

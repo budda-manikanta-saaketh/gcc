@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:gcc/utils/Cards.dart';
 
 class UserHome extends StatefulWidget {
-  const UserHome({Key? key}) : super(key: key);
+  const UserHome({super.key});
 
   @override
   State<UserHome> createState() => _UserHomeState();
@@ -210,7 +210,15 @@ class _UserHomeState extends State<UserHome> {
                 ),
                 itemCount: products.length,
                 itemBuilder: (context, index) {
-                  return ProductCard(product: products[index]);
+                  return GestureDetector(
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/productdetails',
+                          arguments: products[index]["product_Id"],
+                        );
+                      },
+                      child: ProductCard(product: products[index]));
                 },
               );
             },

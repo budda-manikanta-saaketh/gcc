@@ -16,6 +16,8 @@ import 'package:gcc/User/UserEditProfile.dart';
 import 'package:gcc/User/UserWishlist.dart';
 import 'package:gcc/provider/google_sign_in.dart';
 import 'package:gcc/User/UserScaffold.dart';
+import 'package:gcc/user/UserCategories.dart';
+import 'package:gcc/user/UserProductDetails.dart';
 import 'package:gcc/user/UserSearch.dart';
 import 'package:gcc/utils/checkuser.dart';
 import 'package:gcc/utils/hexcolor.dart';
@@ -85,39 +87,49 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Gcc',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.green[800]!,
+        title: 'Gcc',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.green[800]!,
+          ),
+          appBarTheme: AppBarTheme(
+            backgroundColor: HexColor("#007E03"),
+            foregroundColor: Colors.white,
+          ),
+          scaffoldBackgroundColor: Colors.white,
+          useMaterial3: true,
         ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: HexColor("#007E03"),
-          foregroundColor: Colors.white,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        useMaterial3: true,
-      ),
-      home: CheckUser(),
-      routes: {
-        "/login": (context) => LoginPage(),
-        "/signup": (context) => SignUp(),
-        "/adminhome": (context) => AdminHome(initialSelectedIndex: 0),
-        "/adminorders": (context) => AdminOrdersPage(),
-        "/adminorderrequests": (context) => AdminOrderRequests(),
-        "/adminrevenue": (context) => AdminRevenue(),
-        "/adminprofile": (context) => AdminProfile(),
-        "/adminaddcategory": (context) => AdminAddCategory(),
-        "/userhome": (context) => UserScaffold(),
-        "/usersearch": (context) => UserSearch(),
-        "/useraddress": (context) => UserAddress(),
-        "/userorders": (context) => UserScaffold(initialIndex: 1),
-        "/useraddaddress": (context) => UserAddAddress(),
-        "/usereditprofile": (context) => UserEditProfile(),
-        "/userwishlist": (context) => UserWishlist(),
-        "/userallproducts": (context) => UserAllProducts()
-        // "/adminnotifications":(context)=>AdminNotifications(),
-      },
-    );
+        home: CheckUser(),
+        routes: {
+          "/login": (context) => LoginPage(),
+          "/signup": (context) => SignUp(),
+          "/adminhome": (context) => AdminHome(initialSelectedIndex: 0),
+          "/adminorders": (context) => AdminOrdersPage(),
+          "/adminorderrequests": (context) => AdminOrderRequests(),
+          "/adminrevenue": (context) => AdminRevenue(),
+          "/adminprofile": (context) => AdminProfile(),
+          "/adminaddcategory": (context) => AdminAddCategory(),
+          "/userhome": (context) => UserScaffold(),
+          "/usersearch": (context) => UserSearch(),
+          "/useraddress": (context) => UserAddress(),
+          "/userorders": (context) => UserScaffold(initialIndex: 1),
+          "/useraddaddress": (context) => UserAddAddress(),
+          "/usereditprofile": (context) => UserEditProfile(),
+          "/userwishlist": (context) => UserWishlist(),
+          "/userallproducts": (context) => UserAllProducts(),
+          "/usercategories": (context) => CategoriesPage(),
+          // "/adminnotifications":(context)=>AdminNotifications(),
+        },
+        onGenerateRoute: (settings) {
+          // Handle product details route with productId parameter
+          if (settings.name == '/productdetails') {
+            final productId = settings.arguments as String;
+            return MaterialPageRoute(
+              builder: (context) => ProductDetailsPage(productId: productId),
+            );
+          }
+          return null;
+        });
   }
 }
