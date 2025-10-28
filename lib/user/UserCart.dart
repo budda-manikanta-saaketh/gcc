@@ -1,894 +1,575 @@
 // cart_screen.dart
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserCart extends StatefulWidget {
-  const UserCart({Key? key}) : super(key: key);
+  const UserCart({super.key});
 
   @override
   State<UserCart> createState() => _UserCartState();
 }
 
 class _UserCartState extends State<UserCart> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _firestore = FirebaseFirestore.instance;
+  final int deliveryCharge = 40;
 
-  String deliveryAddress =
-      'SR University\nElkarthurthy, Warangal, 506371, Telangana';
-  int deliveryCharges = 40;
+  // Optimistic / UI state
+  final Map<String, int> _optimisticQuantities = {};
+  final Map<String, bool> _updatingItems = {};
 
-  bool isLoading = true;
-  List<CartItem> cartItems = [];
+  // Live in-memory items used for UI. Use ValueNotifier to update UI without full rebuild flicker.
+  final ValueNotifier<List<CartItem>> _itemsNotifier =
+      ValueNotifier<List<CartItem>>([]);
+
+  // Firestore subscription
+  StreamSubscription<QuerySnapshot>? _cartSubscription;
+
+  // Track first-time load complete so we can show empty-cart vs "loading"
+  bool _initialLoadDone = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchCartItems();
+    _startCartListener();
   }
 
-  Future<void> _fetchCartItems() async {
-    try {
-      String? userEmail = FirebaseAuth.instance.currentUser?.email;
-      setState(() {
-        isLoading = true;
-      });
+  @override
+  void dispose() {
+    _cartSubscription?.cancel();
+    _itemsNotifier.dispose();
+    super.dispose();
+  }
 
-      final cartSnapshot = await _firestore
+  void _startCartListener() {
+    final userEmail = FirebaseAuth.instance.currentUser?.email;
+    if (userEmail == null) return;
+
+    _cartSubscription = _firestore
+        .collection('Users')
+        .doc(userEmail)
+        .collection('cart')
+        .snapshots()
+        .listen((snapshot) {
+      // When a new cart snapshot arrives, we map cart docs -> products asynchronously.
+      _handleCartSnapshot(snapshot.docs);
+    }, onError: (err) {
+      // Keep old items visible if error occurs
+      debugPrint('Cart listen error: $err');
+    });
+  }
+
+  Future<void> _handleCartSnapshot(
+      List<DocumentSnapshot<Map<String, dynamic>>> cartDocs) async {
+    // If there are no cart docs and we've already loaded once, clear items.
+    if (cartDocs.isEmpty) {
+      _itemsNotifier.value = [];
+      _initialLoadDone = true;
+      return;
+    }
+
+    // Preserve current UI by immediately leaving current _itemsNotifier.value while we fetch product details.
+    // Fetch product docs in parallel to reduce latency.
+    final futures = <Future<CartItem?>>[];
+    for (var cartDoc in cartDocs) {
+      futures.add(_cartDocToCartItem(cartDoc));
+    }
+
+    final results = await Future.wait(futures);
+
+    final items = results.whereType<CartItem>().toList();
+
+    // Keep optimistic quantities if present: _cartDocToCartItem already applies optimistic quantity.
+    // Update notifier with new list (atomic replace) — this will update bottom bar and list smoothly.
+    _itemsNotifier.value = items;
+    _initialLoadDone = true;
+  }
+
+  Future<CartItem?> _cartDocToCartItem(
+      DocumentSnapshot<Map<String, dynamic>> doc) async {
+    try {
+      final cartData = doc.data();
+      if (cartData == null) return null;
+
+      final productId = (cartData['productId'] ?? '') as String;
+      if (productId.isEmpty) return null;
+
+      final productDoc =
+          await _firestore.collection('Products').doc(productId).get();
+      if (!productDoc.exists) return null;
+
+      final p = productDoc.data()!;
+      final cartId = doc.id;
+
+      final actualQuantity = (cartData['quantity'] ?? 1) is int
+          ? (cartData['quantity'] as int)
+          : int.tryParse('${cartData['quantity']}') ?? 1;
+
+      final displayQuantity = _optimisticQuantities[cartId] ?? actualQuantity;
+
+      return CartItem(
+        id: cartId,
+        productId: productId,
+        name: p['product_Name'] ?? '',
+        imageUrl: (p['images'] as List?)?.isNotEmpty == true
+            ? (p['images'] as List)[0] as String
+            : '',
+        price: (p['price'] ?? 0) is int
+            ? (p['price'] as int)
+            : (p['price'] is double
+                ? (p['price'] as double).toInt()
+                : int.tryParse('${p['price']}') ?? 0),
+        quantity: displayQuantity,
+        availableQuantity: (p['available_Quantity'] ?? 0) is int
+            ? (p['available_Quantity'] as int)
+            : int.tryParse('${p['available_Quantity']}') ?? 0,
+        size: p['size'] ?? '',
+      );
+    } catch (e) {
+      debugPrint('Error mapping cart doc: $e');
+      return null;
+    }
+  }
+
+  // Optimistic update: immediately update local state, then push change to Firestore.
+  Future<void> _updateQuantity(String cartId, int newQty) async {
+    final userEmail = FirebaseAuth.instance.currentUser?.email;
+    if (userEmail == null) return;
+    if (newQty <= 0) {
+      await _removeItem(cartId);
+      return;
+    }
+
+    // Apply optimistic
+    _optimisticQuantities[cartId] = newQty;
+    _updatingItems[cartId] = true;
+    _applyOptimisticToNotifier(cartId, newQty);
+
+    try {
+      await _firestore
           .collection('Users')
           .doc(userEmail)
           .collection('cart')
-          .get();
+          .doc(cartId)
+          .update({'quantity': newQty});
 
-      List<CartItem> fetchedItems = [];
+      // small delay to let user see the updating state nicely
+      await Future.delayed(const Duration(milliseconds: 300));
+      _optimisticQuantities.remove(cartId);
+      _updatingItems[cartId] = false;
 
-      for (var cartDoc in cartSnapshot.docs) {
-        final cartData = cartDoc.data();
-        final productId = cartData['productId'] as String;
-
-        final productDoc =
-            await _firestore.collection('Products').doc(productId).get();
-
-        if (productDoc.exists) {
-          final productData = productDoc.data()!;
-
-          fetchedItems.add(CartItem(
-            id: cartDoc.id,
-            productId: productId,
-            name: productData['product_Name'] ?? '',
-            imageUrl: (productData['images'] as List).isNotEmpty
-                ? productData['images'][0]
-                : '',
-            price: (productData['price'] ?? 0).toInt(),
-            originalPrice: (productData['price'] ?? 0).toInt(),
-            quantity: (cartData['quantity'] ?? 1).toInt(),
-            rating: (productData['rating_Count'] ?? 0) > 0
-                ? (productData['total_Rating'] ?? 0).toDouble() /
-                    (productData['rating_Count']).toDouble()
-                : 0.0,
-            reviewCount: (productData['rating_Count'] ?? 0).toInt(),
-            availableQuantity: (productData['available_Quantity'] ?? 0).toInt(),
-            size: productData['size'] ?? '',
-            description: productData['product_Description'] ?? '',
-          ));
-        }
-      }
-
-      setState(() {
-        cartItems = fetchedItems;
-        isLoading = false;
-      });
+      // After success, refresh already occurs via the listener; but ensure notifier reflects final value.
+      _refreshSingleCartItem(cartId);
     } catch (e) {
-      print('Error fetching cart items: $e');
-      setState(() {
-        isLoading = false;
-      });
+      // revert optimistic state on error
+      _optimisticQuantities.remove(cartId);
+      _updatingItems[cartId] = false;
+      // re-fetch cart item to restore correct quantity
+      _refreshSingleCartItem(cartId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading cart: $e'),
-            backgroundColor: Colors.red[400],
-          ),
+          const SnackBar(content: Text('Failed to update quantity')),
         );
       }
     }
   }
 
-  int get subtotal =>
-      cartItems.fold(0, (sum, item) => sum + (item.price * item.quantity));
-  int get totalOriginalPrice => cartItems.fold(
-      0, (sum, item) => sum + (item.originalPrice * item.quantity));
-  int get discount => totalOriginalPrice - subtotal;
-  int get totalAmount => subtotal + deliveryCharges;
-  int get savings => discount;
+  // Remove item from firestore (and optimistic flags)
+  Future<void> _removeItem(String cartId) async {
+    final userEmail = FirebaseAuth.instance.currentUser?.email;
+    if (userEmail == null) return;
 
-  Future<void> _updateQuantity(
-      String cartDocId, String productId, int newQuantity) async {
-    if (newQuantity <= 0) {
-      await _removeItem(cartDocId);
-      return;
-    }
-
+    _updatingItems[cartId] = true;
+    // update UI: dim or overlay is handled by CartItemWidget
     try {
-      String? userEmail = FirebaseAuth.instance.currentUser?.email;
       await _firestore
           .collection('Users')
           .doc(userEmail)
           .collection('cart')
-          .doc(cartDocId)
-          .update({'quantity': newQuantity});
-
-      setState(() {
-        final index = cartItems.indexWhere((item) => item.id == cartDocId);
-        if (index != -1) {
-          cartItems[index].quantity = newQuantity;
-        }
-      });
+          .doc(cartId)
+          .delete();
+      // listener will remove it from notifier
+      _updatingItems.remove(cartId);
+      _optimisticQuantities.remove(cartId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Item removed from cart'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      print('Error updating quantity: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating quantity'),
-          backgroundColor: Colors.red[400],
-        ),
-      );
+      _updatingItems.remove(cartId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to remove item')),
+        );
+      }
     }
   }
 
-  Future<void> _removeItem(String cartDocId) async {
+  // Apply optimistic quantity change to the in-memory notifier list immediately.
+  void _applyOptimisticToNotifier(String cartId, int newQty) {
+    final current = List<CartItem>.from(_itemsNotifier.value);
+    final idx = current.indexWhere((it) => it.id == cartId);
+    if (idx != -1) {
+      final old = current[idx];
+      current[idx] = old.copyWith(quantity: newQty);
+      _itemsNotifier.value = current;
+    }
+  }
+
+  // Rebuild only a single item by refetching its product doc (used after update or error).
+  Future<void> _refreshSingleCartItem(String cartId) async {
     try {
-      String? userEmail = FirebaseAuth.instance.currentUser?.email;
-      await _firestore
+      final userEmail = FirebaseAuth.instance.currentUser?.email;
+      if (userEmail == null) return;
+
+      final cartDoc = await _firestore
           .collection('Users')
           .doc(userEmail)
           .collection('cart')
-          .doc(cartDocId)
-          .delete();
+          .doc(cartId)
+          .get();
 
-      setState(() {
-        cartItems.removeWhere((item) => item.id == cartDocId);
-      });
+      if (!cartDoc.exists) {
+        // item removed — remove from notifier
+        final current = List<CartItem>.from(_itemsNotifier.value);
+        current.removeWhere((it) => it.id == cartId);
+        _itemsNotifier.value = current;
+        return;
+      }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Item removed from cart'),
-            ],
-          ),
-          backgroundColor: Colors.green[600],
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      final newItem = await _cartDocToCartItem(cartDoc);
+      if (newItem == null) return;
+
+      final current = List<CartItem>.from(_itemsNotifier.value);
+      final idx = current.indexWhere((it) => it.id == cartId);
+      if (idx != -1) {
+        current[idx] = newItem;
+      } else {
+        current.add(newItem);
+      }
+      _itemsNotifier.value = current;
     } catch (e) {
-      print('Error removing item: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error removing item'),
-          backgroundColor: Colors.red[400],
-        ),
-      );
+      debugPrint('refreshSingleCartItem error: $e');
     }
+  }
+
+  // Compute subtotal from current in-memory items.
+  int get _subtotal {
+    final items = _itemsNotifier.value;
+    return items.fold(0, (s, it) => s + it.price * it.quantity);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                shape: BoxShape.circle,
-              ),
-              child: const CircularProgressIndicator(
-                color: Colors.green,
-                strokeWidth: 3,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Loading your cart...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (cartItems.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(30),
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.shopping_cart_outlined,
-                size: 80,
-                color: Colors.green[300],
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Your cart is empty',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add products to get started',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              icon:
-                  const Icon(Icons.shopping_bag_outlined, color: Colors.white),
-              label: const Text(
-                'Start Shopping',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 2,
-              ),
-            ),
-          ],
-        ),
+    final userEmail = FirebaseAuth.instance.currentUser?.email;
+    if (userEmail == null) {
+      return const Scaffold(
+        body: Center(child: Text("Please sign in to view your cart")),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Column(
-        children: [
-          // Header with item count
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      backgroundColor: const Color(0xFFF8FAF8),
+      appBar: AppBar(
+        title: const Text("My Cart",
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        backgroundColor: const Color(0xFF2E7D32),
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: ValueListenableBuilder<List<CartItem>>(
+        valueListenable: _itemsNotifier,
+        builder: (context, items, _) {
+          // If initial load not done and items list is empty, show a gentle placeholder (no spinner).
+          if (!_initialLoadDone && items.isEmpty) {
+            return _buildLoadingPlaceholder();
+          }
+
+          if (items.isEmpty) {
+            return _buildEmptyCart();
+          }
+
+          final subtotal = _subtotal;
+          final total = subtotal + deliveryCharge;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with item count
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        "Items in Cart",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2E7D32),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          "${items.length}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Cart Items
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    final isUpdating = _updatingItems[item.id] ?? false;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: CartItemWidget(
+                        item: item,
+                        isUpdating: isUpdating,
+                        onQuantityChanged: (change) =>
+                            _updateQuantity(item.id, item.quantity + change),
+                        onRemove: () => _removeItem(item.id),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Price Summary
+                _buildPriceSummaryCard(subtotal, deliveryCharge, total),
+
+                const SizedBox(height: 100),
+              ],
+            ),
+          );
+        },
+      ),
+
+      // Bottom Bar
+      bottomNavigationBar: ValueListenableBuilder<List<CartItem>>(
+        valueListenable: _itemsNotifier,
+        builder: (context, items, _) {
+          if (items.isEmpty) return const SizedBox.shrink();
+          final subtotal = items.fold(0, (s, it) => s + it.price * it.quantity);
+          final total = subtotal + deliveryCharge;
+
+          return Container(
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.shopping_cart,
-                    color: Colors.green[700],
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'My Cart',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    Text(
-                      '${cartItems.length} ${cartItems.length == 1 ? 'item' : 'items'}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child: SafeArea(
+              child: Row(
                 children: [
-                  const SizedBox(height: 12),
-
-                  // Delivery Address Section
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.green[50],
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                Icons.location_on,
-                                color: Colors.green[700],
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Deliver to',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    deliveryAddress,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[800],
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.green[700],
-                              side: BorderSide(color: Colors.green[300]!),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            child: const Text(
-                              'Change Address',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Cart Items Header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'Items in Cart',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Cart Items
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: cartItems.length,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: CartItemWidget(
-                          item: cartItems[index],
-                          onQuantityChanged: (change) {
-                            final newQuantity =
-                                cartItems[index].quantity + change;
-                            _updateQuantity(
-                              cartItems[index].id,
-                              cartItems[index].productId,
-                              newQuantity,
-                            );
-                          },
-                          onRemove: () {
-                            _removeItem(cartItems[index].id);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Price Details Section
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.green[50]!, Colors.white],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.green[100]!),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.withOpacity(0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.receipt_long,
-                                color: Colors.green[700], size: 22),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Price Details',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildPriceRow('Price', '₹ $totalOriginalPrice'),
-                        const SizedBox(height: 12),
-                        _buildPriceRow('Discount', '- ₹ $discount',
-                            isDiscount: true),
-                        const SizedBox(height: 12),
-                        _buildPriceRow(
-                            'Delivery Charges', '₹ $deliveryCharges'),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child:
-                              Divider(color: Colors.green[200], thickness: 1.5),
-                        ),
-                        _buildPriceRow(
+                        Text(
                           'Total Amount',
-                          '₹ $totalAmount',
-                          isBold: true,
-                          fontSize: 20,
-                        ),
-                        if (savings > 0) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.green[100],
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.check_circle,
-                                    color: Colors.green[700], size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'You will save ₹$savings on this order',
-                                    style: TextStyle(
-                                      color: Colors.green[800],
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
                           ),
-                        ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '₹$total',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2E7D32),
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 120),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // Bottom Bar
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 16,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Total Amount',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {},
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2E7D32),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹ $totalAmount',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[900],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    // Proceed to checkout
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 4,
-                    shadowColor: Colors.green.withOpacity(0.4),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Proceed',
+                      child: const Text(
+                        'Proceed to Pay',
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward, color: Colors.white, size: 20),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildPriceRow(
-    String label,
-    String value, {
-    bool isDiscount = false,
-    bool isBold = false,
-    double fontSize = 15,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: isBold ? Colors.grey[900] : Colors.grey[700],
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
-            color: isDiscount
-                ? Colors.green[700]
-                : (isBold ? Colors.grey[900] : Colors.grey[800]),
-          ),
-        ),
-      ],
+  // A subtle placeholder used only during the very first load (no spinner).
+  Widget _buildLoadingPlaceholder() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.shopping_cart_outlined,
+              size: 80, color: Colors.green[200]),
+          const SizedBox(height: 12),
+          Text('Loading cart...',
+              style: TextStyle(fontSize: 16, color: Colors.grey[700])),
+        ],
+      ),
     );
   }
-}
 
-// Cart Item Widget
-class CartItemWidget extends StatelessWidget {
-  final CartItem item;
-  final Function(int) onQuantityChanged;
-  final VoidCallback onRemove;
+  Widget _buildEmptyCart() => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.shopping_cart_outlined,
+                size: 80,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Your cart is empty',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add some items to continue!',
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
 
-  const CartItemWidget({
-    Key? key,
-    required this.item,
-    required this.onQuantityChanged,
-    required this.onRemove,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildPriceSummaryCard(int subtotal, int delivery, int total) {
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
+      padding: const EdgeInsets.all(20),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Product Image
-          Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[200]!),
-              image: item.imageUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(item.imageUrl),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
+          const Text(
+            'Price Summary',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2E7D32),
             ),
-            child: item.imageUrl.isEmpty
-                ? Icon(Icons.image, size: 40, color: Colors.grey[400])
-                : null,
           ),
-          const SizedBox(width: 14),
+          const SizedBox(height: 16),
+          _buildPriceRow('Subtotal', '₹$subtotal'),
+          const SizedBox(height: 4),
+          _buildPriceRow('Delivery Charge', '₹$delivery'),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(color: Colors.grey[300], thickness: 1),
+          ),
+          _buildPriceRow('Total Amount', '₹$total', isBold: true),
+        ],
+      ),
+    );
+  }
 
-          // Product Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.name,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[900],
-                          height: 1.3,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: onRemove,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.delete_outline,
-                          color: Colors.red[400],
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Rating
-                if (item.reviewCount > 0)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.star, size: 14, color: Colors.orange[700]),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${item.rating.toStringAsFixed(1)} (${item.reviewCount})',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.orange[900],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                const SizedBox(height: 10),
-
-                // Price
-                Row(
-                  children: [
-                    if (item.originalPrice > item.price)
-                      Text(
-                        '₹${item.originalPrice}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[500],
-                          decoration: TextDecoration.lineThrough,
-                        ),
-                      ),
-                    if (item.originalPrice > item.price)
-                      const SizedBox(width: 6),
-                    Text(
-                      '₹${item.price}',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[900],
-                      ),
-                    ),
-                    Text(
-                      ' / ${item.size}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Quantity Controls
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.green[200]!),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => onQuantityChanged(-1),
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            child: Icon(
-                              Icons.remove,
-                              size: 18,
-                              color: Colors.green[700],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          '${item.quantity}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green[900],
-                          ),
-                        ),
-                      ),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: item.quantity < item.availableQuantity
-                              ? () => onQuantityChanged(1)
-                              : null,
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            child: Icon(
-                              Icons.add,
-                              size: 18,
-                              color: item.quantity < item.availableQuantity
-                                  ? Colors.green[700]
-                                  : Colors.grey[400],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  Widget _buildPriceRow(String label, String value, {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isBold ? 17 : 15,
+              color: isBold ? Colors.grey[800] : Colors.grey[600],
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: isBold ? 18 : 16,
+              color: isBold ? const Color(0xFF2E7D32) : Colors.grey[800],
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
             ),
           ),
         ],
@@ -897,20 +578,15 @@ class CartItemWidget extends StatelessWidget {
   }
 }
 
-// Cart Item Model
 class CartItem {
   final String id;
   final String productId;
   final String name;
   final String imageUrl;
   final int price;
-  final int originalPrice;
   int quantity;
-  final double rating;
-  final int reviewCount;
   final int availableQuantity;
   final String size;
-  final String description;
 
   CartItem({
     required this.id,
@@ -918,12 +594,303 @@ class CartItem {
     required this.name,
     required this.imageUrl,
     required this.price,
-    required this.originalPrice,
     required this.quantity,
-    required this.rating,
-    required this.reviewCount,
     required this.availableQuantity,
     required this.size,
-    required this.description,
   });
+
+  CartItem copyWith({
+    String? id,
+    String? productId,
+    String? name,
+    String? imageUrl,
+    int? price,
+    int? quantity,
+    int? availableQuantity,
+    String? size,
+  }) {
+    return CartItem(
+      id: id ?? this.id,
+      productId: productId ?? this.productId,
+      name: name ?? this.name,
+      imageUrl: imageUrl ?? this.imageUrl,
+      price: price ?? this.price,
+      quantity: quantity ?? this.quantity,
+      availableQuantity: availableQuantity ?? this.availableQuantity,
+      size: size ?? this.size,
+    );
+  }
+}
+
+class CartItemWidget extends StatelessWidget {
+  final CartItem item;
+  final bool isUpdating;
+  final Function(int) onQuantityChanged;
+  final VoidCallback onRemove;
+
+  const CartItemWidget({
+    super.key,
+    required this.item,
+    required this.isUpdating,
+    required this.onQuantityChanged,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isUpdating
+              ? const Color(0xFF2E7D32).withOpacity(0.3)
+              : Colors.transparent,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image
+              Hero(
+                tag: 'cart-${item.id}',
+                child: Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    image: item.imageUrl.isNotEmpty
+                        ? DecorationImage(
+                            image: NetworkImage(item.imageUrl),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                    color: Colors.grey[200],
+                  ),
+                  child: item.imageUrl.isEmpty
+                      ? const Icon(Icons.image, color: Colors.grey, size: 40)
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 14),
+              // Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '₹${item.price}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _qtyButton(Icons.remove, () => onQuantityChanged(-1),
+                            enabled: item.quantity > 1),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isUpdating
+                                ? const Color(0xFFE8F5E9)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${item.quantity}',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: isUpdating
+                                  ? const Color(0xFF2E7D32)
+                                  : Colors.grey[800],
+                            ),
+                          ),
+                        ),
+                        _qtyButton(Icons.add, () {
+                          if (item.quantity < item.availableQuantity) {
+                            onQuantityChanged(1);
+                          }
+                        }, enabled: item.quantity < item.availableQuantity),
+                        const Spacer(),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: onRemove,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              child: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.redAccent,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Updating overlay - non-spinner (pulsing dot + text)
+          if (isUpdating)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.white.withOpacity(0.4),
+                ),
+                child: Center(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E7D32),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        _PulsingDot(size: 10, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text(
+                          'Updating...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _qtyButton(IconData icon, VoidCallback onPressed,
+      {bool enabled = true}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: enabled ? const Color(0xFFE8F5E9) : Colors.grey[200],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: enabled
+                  ? const Color(0xFF2E7D32).withOpacity(0.3)
+                  : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.all(8),
+          child: Icon(icon,
+              size: 20,
+              color: enabled ? const Color(0xFF2E7D32) : Colors.grey[400]),
+        ),
+      ),
+    );
+  }
+}
+
+// Small pulsing dot used in "Updating..." badge
+class _PulsingDot extends StatefulWidget {
+  final double size;
+  final Color color;
+  const _PulsingDot({required this.size, required this.color});
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+        duration: const Duration(milliseconds: 800), vsync: this)
+      ..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.7, end: 1.2)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _anim,
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: widget.color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+                color: widget.color.withOpacity(0.7),
+                blurRadius: 8,
+                spreadRadius: 2)
+          ],
+        ),
+      ),
+    );
+  }
 }

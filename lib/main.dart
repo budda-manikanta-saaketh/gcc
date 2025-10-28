@@ -119,6 +119,9 @@ class MyApp extends StatelessWidget {
           "/userwishlist": (context) => UserWishlist(),
           "/userallproducts": (context) => UserAllProducts(),
           "/usercategories": (context) => CategoriesPage(),
+          "/usercart": (context) => UserScaffold(
+                initialIndex: 2,
+              )
           // "/adminnotifications":(context)=>AdminNotifications(),
         },
         onGenerateRoute: (settings) {

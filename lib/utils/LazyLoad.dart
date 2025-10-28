@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class LazyLoadPage extends StatefulWidget {
   final Widget Function() builder;
 
-  const LazyLoadPage({Key? key, required this.builder}) : super(key: key);
+  const LazyLoadPage({super.key, required this.builder});
 
   @override
   State<LazyLoadPage> createState() => _LazyLoadPageState();
@@ -16,12 +16,12 @@ class _LazyLoadPageState extends State<LazyLoadPage>
   @override
   void initState() {
     super.initState();
-    _child = null; // initially not built
+    _child = null;
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // required for AutomaticKeepAliveClientMixin
+    super.build(context);
     _child ??= widget.builder();
     return _child!;
   }

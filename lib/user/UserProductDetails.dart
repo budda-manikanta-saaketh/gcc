@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -14,6 +15,34 @@ class ProductDetailsPage extends StatefulWidget {
 class _ProductDetailsPageState extends State<ProductDetailsPage> {
   int _currentImageIndex = 0;
   bool _isFavorite = false;
+  final _auth = FirebaseAuth.instance;
+  @override
+  void initState() {
+    super.initState();
+    _checkIfInWishlist();
+  }
+
+  Future<void> _checkIfInWishlist() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final docRef = FirebaseFirestore.instance
+          .collection('Users')
+          .doc(user.email)
+          .collection('wishlist')
+          .doc(widget.productId);
+
+      final doc = await docRef.get();
+      if (mounted) {
+        setState(() {
+          _isFavorite = doc.exists;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking wishlist: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +62,9 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
           ),
           IconButton(
             icon: const Icon(Icons.shopping_cart, color: Colors.green),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.pushNamed(context, "/usercart");
+            },
           ),
         ],
       ),
@@ -123,10 +154,27 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                                 : Icons.favorite_border,
                             color: _isFavorite ? Colors.red : Colors.grey,
                           ),
-                          onPressed: () {
+                          onPressed: () async {
+                            final user = _auth.currentUser;
+                            if (user == null) return;
+
+                            final docRef = FirebaseFirestore.instance
+                                .collection('Users')
+                                .doc(user.email)
+                                .collection('wishlist')
+                                .doc(widget.productId);
+
                             setState(() {
                               _isFavorite = !_isFavorite;
                             });
+
+                            if (_isFavorite) {
+                              await docRef.set({
+                                'likedOn': FieldValue.serverTimestamp(),
+                              });
+                            } else {
+                              await docRef.delete();
+                            }
                           },
                         ),
                       ),
@@ -345,9 +393,9 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                 child: const Text(
                   'Add to cart',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
                 ),
               ),
             ),
