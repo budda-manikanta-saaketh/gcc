@@ -43,6 +43,87 @@ class _UserCartState extends State<UserCart> {
     super.dispose();
   }
 
+  Future<void> _placeorder() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please sign in to place an order")),
+      );
+      return;
+    }
+
+    final userEmail = user.email!;
+    final items = _itemsNotifier.value;
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Your cart is empty")),
+      );
+      return;
+    }
+
+    final int subtotal = _subtotal;
+    final int total = subtotal + deliveryCharge;
+
+    try {
+      final orderRef = _firestore.collection("Orders").doc();
+
+      final orderData = {
+        "orderId": orderRef.id,
+        "userEmail": userEmail,
+        "createdAt": FieldValue.serverTimestamp(),
+        "subtotal": subtotal,
+        "deliveryCharge": deliveryCharge,
+        "total": total,
+        "status": "Pending",
+        "items": items.map((item) {
+          return {
+            "productId": item.productId,
+            "name": item.name,
+            "price": item.price,
+            "quantity": item.quantity,
+            "size": item.size,
+            "imageUrl": item.imageUrl,
+          };
+        }).toList(),
+      };
+
+      await orderRef.set(orderData);
+
+      // Optionally: clear the user's cart
+      final cartCollection =
+          _firestore.collection("Users").doc(userEmail).collection("cart");
+
+      final batch = _firestore.batch();
+      final cartDocs = await cartCollection.get();
+      for (final doc in cartDocs.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Order placed successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      // Optionally navigate to an order confirmation page
+      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => OrderSuccessPage()));
+    } catch (e) {
+      debugPrint("Error placing order: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to place order. Please try again."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   void _startCartListener() {
     final userEmail = FirebaseAuth.instance.currentUser?.email;
     if (userEmail == null) return;
@@ -53,10 +134,8 @@ class _UserCartState extends State<UserCart> {
         .collection('cart')
         .snapshots()
         .listen((snapshot) {
-      // When a new cart snapshot arrives, we map cart docs -> products asynchronously.
       _handleCartSnapshot(snapshot.docs);
     }, onError: (err) {
-      // Keep old items visible if error occurs
       debugPrint('Cart listen error: $err');
     });
   }
