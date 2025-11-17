@@ -65,13 +65,17 @@ class _UserCartState extends State<UserCart> {
     final int total = subtotal + deliveryCharge;
 
     try {
-      final orderRef = _firestore.collection("Orders").doc();
-
+      final orderRef = _firestore.collection("Orders_Requests").doc();
+      final userRef = _firestore
+          .collection("Users")
+          .doc(userEmail)
+          .collection("orders")
+          .doc(orderRef.id);
       final orderData = {
         "orderId": orderRef.id,
         "userEmail": userEmail,
         "createdAt": FieldValue.serverTimestamp(),
-        "subtotal": subtotal,
+        "subTotal": subtotal,
         "deliveryCharge": deliveryCharge,
         "total": total,
         "status": "Pending",
@@ -88,6 +92,7 @@ class _UserCartState extends State<UserCart> {
       };
 
       await orderRef.set(orderData);
+      await userRef.set(orderData);
 
       // Optionally: clear the user's cart
       final cartCollection =
@@ -509,7 +514,9 @@ class _UserCartState extends State<UserCart> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        _placeorder();
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2E7D32),
                         padding: const EdgeInsets.symmetric(vertical: 16),

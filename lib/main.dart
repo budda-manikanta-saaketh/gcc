@@ -16,6 +16,7 @@ import 'package:gcc/User/UserEditProfile.dart';
 import 'package:gcc/User/UserWishlist.dart';
 import 'package:gcc/provider/google_sign_in.dart';
 import 'package:gcc/User/UserScaffold.dart';
+import 'package:gcc/user/OrderDetails.dart';
 import 'package:gcc/user/UserCategories.dart';
 import 'package:gcc/user/UserProductDetails.dart';
 import 'package:gcc/user/UserSearch.dart';
@@ -121,7 +122,13 @@ class MyApp extends StatelessWidget {
           "/usercategories": (context) => CategoriesPage(),
           "/usercart": (context) => UserScaffold(
                 initialIndex: 2,
-              )
+              ),
+          "/userorderdetails": (context) {
+            final orderData = ModalRoute.of(context)!.settings.arguments
+                as Map<String, dynamic>;
+            return OrderDetailsPage(orderData: orderData);
+          },
+
           // "/adminnotifications":(context)=>AdminNotifications(),
         },
         onGenerateRoute: (settings) {
